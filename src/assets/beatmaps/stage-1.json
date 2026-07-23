@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "notes": [
+    { "beat": 4, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 0 },
+    { "beat": 6, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 1 },
+    { "beat": 8, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 2 },
+    { "beat": 10, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 3 },
+    { "beat": 12, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 4 },
+    { "beat": 13, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 5 },
+    { "beat": 14, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 6 },
+    { "beat": 15, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 7 },
+    { "beat": 17, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 0 },
+    { "beat": 18, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 1 },
+    { "beat": 19, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 2 },
+    { "beat": 20, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 3 },
+    { "beat": 22, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 4 },
+    { "beat": 23, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 5 },
+    { "beat": 24, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 6 },
+    { "beat": 25, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 7 },
+    { "beat": 27, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 0 },
+    { "beat": 28, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 1 },
+    { "beat": 29, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 2 },
+    { "beat": 30, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 3 },
+    { "beat": 32, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 4 },
+    { "beat": 33, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 5 },
+    { "beat": 34, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 6 },
+    { "beat": 35, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 7 },
+    { "beat": 36, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 0 },
+    { "beat": 37, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 1 },
+    { "beat": 38, "lane": 0, "type": "tap", "durationBeats": 0, "pitchIndex": 2 },
+    { "beat": 39, "lane": 1, "type": "tap", "durationBeats": 0, "pitchIndex": 3 }
+  ]
+}
+
