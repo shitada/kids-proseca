@@ -1,5 +1,9 @@
 # とうきょう でんしゃビート！
 
+[![Deploy to GitHub Pages](https://github.com/shitada/kids-proseca/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/shitada/kids-proseca/actions/workflows/deploy-pages.yml)
+
+🎮 **プレイはこちら → [https://shitada.github.io/kids-proseca/](https://shitada.github.io/kids-proseca/)**
+
 5〜10歳向けのiPad横画面用リズムゲームです。画面上から走ってくる電車が駅へ着く瞬間に、左右の線路をタップして音をつなぎます。
 
 現在は、山手線をモチーフにした1ステージの縦切りプロトタイプです。JSON譜面、AudioContext基準の判定、長押し・同時押し対応、自動おたすけ判定、軽量3Dパーティクルの基盤を含みます。車両、路線表示、音楽は権利確認前の開発用プレースホルダーで、音楽はWeb Audio APIによる別旋律のオリジナル生成音を使用しています。
