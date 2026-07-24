@@ -41,7 +41,8 @@ button:focus-visible {
 
 .title-screen,
 .tutorial-screen,
-.result-screen {
+.result-screen,
+.stage-select-screen {
   display: grid;
   min-height: 100%;
   place-items: center;
@@ -50,6 +51,99 @@ button:focus-visible {
     max(24px, env(safe-area-inset-right))
     max(20px, env(safe-area-inset-bottom))
     max(24px, env(safe-area-inset-left));
+}
+
+.stage-select-screen {
+  display: block;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 85% 12%, #fff3a8 0 5%, transparent 5.5%),
+    linear-gradient(160deg, #a9e5ff, #d7f2da);
+}
+
+.stage-select-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(1180px, 94vw);
+  margin: 0 auto 16px;
+}
+
+.stage-select-header h2 {
+  margin-bottom: 0;
+  color: #143d59;
+  font-size: clamp(28px, 4vw, 48px);
+}
+
+.stage-map {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  width: min(1180px, 94vw);
+  margin: 0 auto;
+  padding-bottom: max(22px, env(safe-area-inset-bottom));
+}
+
+.stage-card {
+  position: relative;
+  min-height: 132px;
+  border: 4px solid rgb(255 255 255 / 82%);
+  border-radius: 22px;
+  padding: 16px 14px;
+  color: #173f56;
+  background: rgb(255 255 255 / 88%);
+  box-shadow: 0 8px 0 rgb(24 71 90 / 16%);
+  text-align: left;
+}
+
+.stage-card:not(:disabled):active {
+  transform: translateY(5px);
+  box-shadow: 0 3px 0 rgb(24 71 90 / 16%);
+}
+
+.stage-card.is-cleared {
+  border-color: #f2cd45;
+  background: #fffbed;
+}
+
+.stage-card:disabled {
+  color: #72869a;
+  background: rgb(222 230 235 / 90%);
+  box-shadow: none;
+  cursor: default;
+}
+
+.stage-card strong,
+.stage-card small,
+.stage-number {
+  display: block;
+}
+
+.stage-number {
+  margin-bottom: 5px;
+  color: #4d7f18;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.stage-card strong {
+  margin-bottom: 6px;
+  font-size: clamp(16px, 2vw, 21px);
+  line-height: 1.2;
+}
+
+.stage-card small {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.stage-ticket {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 24px;
 }
 
 .title-screen {
@@ -274,7 +368,7 @@ h2 {
 
 .tutorial-steps {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -405,10 +499,10 @@ h2 {
 .lane-controls {
   position: absolute;
   z-index: 5;
-  inset: 24% 8% max(8px, env(safe-area-inset-bottom));
+  inset: 24% max(2%, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(2%, env(safe-area-inset-left));
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 5%;
+  grid-template-columns: repeat(var(--lane-count), minmax(0, 1fr));
+  gap: clamp(4px, 1vw, 14px);
   pointer-events: none;
 }
 
@@ -423,14 +517,14 @@ h2 {
 
 .lane-button span {
   position: absolute;
-  right: 20%;
+  right: 8%;
   bottom: 3%;
-  left: 20%;
+  left: 8%;
   border: 3px solid rgb(255 255 255 / 65%);
   border-radius: 999px;
   padding: 7px;
   background: rgb(16 42 67 / 55%);
-  font-size: clamp(14px, 1.8vw, 20px);
+  font-size: clamp(12px, 1.6vw, 20px);
   font-weight: 900;
 }
 
@@ -542,6 +636,20 @@ h2 {
   color: #6d4900;
   background: #ffe991;
   font-size: clamp(18px, 2.5vw, 26px);
+  font-weight: 900;
+}
+
+.result-route {
+  margin-bottom: 12px;
+  color: #365a72;
+  font-size: clamp(18px, 2.4vw, 26px);
+  font-weight: 900;
+}
+
+.all-clear-message {
+  margin: 14px auto;
+  color: #2f6f22;
+  font-size: clamp(18px, 2.4vw, 26px);
   font-weight: 900;
 }
 

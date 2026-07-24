@@ -1,5 +1,10 @@
-export type LaneIndex = 0 | 1;
+export type LaneIndex = 0 | 1 | 2 | 3 | 4 | 5;
+export type LaneCount = 2 | 3 | 4 | 5 | 6;
 export type NoteType = "tap" | "hold";
+
+export function isLaneIndex(value: number): value is LaneIndex {
+  return Number.isInteger(value) && value >= 0 && value <= 5;
+}
 
 export interface RhythmNote {
   id: string;
@@ -7,7 +12,7 @@ export interface RhythmNote {
   time: number;
   type: NoteType;
   duration: number;
-  frequency: number;
+  midiNote: number;
 }
 
 export type NoteStatus = "pending" | "holding" | "hit" | "missed";
