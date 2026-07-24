@@ -11,6 +11,8 @@ import stageTenBeatmap from "../../assets/beatmaps/stage-10.json";
 import stageElevenBeatmap from "../../assets/beatmaps/stage-11.json";
 import stageTwelveBeatmap from "../../assets/beatmaps/stage-12.json";
 import stageThirteenBeatmap from "../../assets/beatmaps/stage-13.json";
+import stageFourteenBeatmap from "../../assets/beatmaps/stage-14.json";
+import stageFifteenBeatmap from "../../assets/beatmaps/stage-15.json";
 import {
   isScaleDegree,
   scaleDegreeToMidi,
@@ -22,6 +24,7 @@ import {
   type NoteType,
   type RhythmNote,
 } from "../rhythm/types";
+import { expandBeatmap } from "../rhythm/BeatmapExpander";
 
 export type StageCategory = "jr" | "private" | "subway";
 export type StageEnvironment =
@@ -37,7 +40,9 @@ export type StageEnvironment =
   | "starry"
   | "green-suburb"
   | "deep-subway"
-  | "finale";
+  | "finale"
+  | "neon-subway"
+  | "airport-finale";
 
 export interface StageTheme {
   sky: number;
@@ -67,6 +72,7 @@ export interface StageConfig {
 interface StageDefinition
   extends Omit<StageConfig, "duration" | "notes" | "rightsStatus"> {
   beatmap: unknown;
+  targetDurationSeconds: number;
 }
 
 const melodyDegrees = [0, 2, 4, 5, 4, 2, 1, 2] as const;
@@ -99,6 +105,7 @@ const DEFINITIONS: readonly StageDefinition[] = [
     laneCount: 2,
     environment: "city",
     bpm: 92,
+    targetDurationSeconds: 35,
     leadTime: 2.4,
     beatmap: stageOneBeatmap,
     music: music("C major", 60, "sine", "sine"),
@@ -114,6 +121,7 @@ const DEFINITIONS: readonly StageDefinition[] = [
     laneCount: 2,
     environment: "tram",
     bpm: 98,
+    targetDurationSeconds: 38,
     leadTime: 2.35,
     beatmap: stageTwoBeatmap,
     music: music("F major", 65, "sine", "triangle"),
@@ -129,6 +137,7 @@ const DEFINITIONS: readonly StageDefinition[] = [
     laneCount: 2,
     environment: "retro-subway",
     bpm: 104,
+    targetDurationSeconds: 41,
     leadTime: 2.3,
     beatmap: stageThreeBeatmap,
     music: music("G major", 67, "triangle", "sine"),
@@ -144,6 +153,7 @@ const DEFINITIONS: readonly StageDefinition[] = [
     laneCount: 3,
     environment: "bay",
     bpm: 108,
+    targetDurationSeconds: 44,
     leadTime: 2.25,
     beatmap: stageFourBeatmap,
     music: music("D major", 62, "sine", "sine"),
@@ -159,6 +169,7 @@ const DEFINITIONS: readonly StageDefinition[] = [
     laneCount: 3,
     environment: "river",
     bpm: 112,
+    targetDurationSeconds: 47,
     leadTime: 2.2,
     beatmap: stageFiveBeatmap,
     music: music("B-flat major", 58, "triangle", "sine"),
@@ -174,6 +185,7 @@ const DEFINITIONS: readonly StageDefinition[] = [
     laneCount: 3,
     environment: "sunset",
     bpm: 116,
+    targetDurationSeconds: 50,
     leadTime: 2.15,
     beatmap: stageSixBeatmap,
     music: music("A major", 57, "triangle", "triangle"),
@@ -189,6 +201,7 @@ const DEFINITIONS: readonly StageDefinition[] = [
     laneCount: 4,
     environment: "coast",
     bpm: 120,
+    targetDurationSeconds: 54,
     leadTime: 2.1,
     beatmap: stageSevenBeatmap,
     music: music("E major", 64, "square", "triangle"),
@@ -204,6 +217,7 @@ const DEFINITIONS: readonly StageDefinition[] = [
     laneCount: 4,
     environment: "red-subway",
     bpm: 124,
+    targetDurationSeconds: 58,
     leadTime: 2.05,
     beatmap: stageEightBeatmap,
     music: music("E-flat major", 63, "triangle", "sine"),
@@ -219,6 +233,7 @@ const DEFINITIONS: readonly StageDefinition[] = [
     laneCount: 4,
     environment: "mountain",
     bpm: 128,
+    targetDurationSeconds: 62,
     leadTime: 2,
     beatmap: stageNineBeatmap,
     music: music("C major", 60, "sine", "triangle"),
@@ -234,6 +249,7 @@ const DEFINITIONS: readonly StageDefinition[] = [
     laneCount: 5,
     environment: "starry",
     bpm: 132,
+    targetDurationSeconds: 66,
     leadTime: 1.95,
     beatmap: stageTenBeatmap,
     music: music("G major", 55, "triangle", "sine"),
@@ -249,6 +265,7 @@ const DEFINITIONS: readonly StageDefinition[] = [
     laneCount: 5,
     environment: "green-suburb",
     bpm: 136,
+    targetDurationSeconds: 70,
     leadTime: 1.9,
     beatmap: stageElevenBeatmap,
     music: music("D major", 62, "square", "triangle"),
@@ -264,6 +281,7 @@ const DEFINITIONS: readonly StageDefinition[] = [
     laneCount: 5,
     environment: "deep-subway",
     bpm: 140,
+    targetDurationSeconds: 74,
     leadTime: 1.85,
     beatmap: stageTwelveBeatmap,
     music: music("F major", 53, "square", "sine"),
@@ -277,31 +295,73 @@ const DEFINITIONS: readonly StageDefinition[] = [
     vehicleName: "E233けい モチーフ",
     worldName: "とうきょう おんがくパレード",
     laneCount: 6,
-    environment: "finale",
+    environment: "mountain",
     bpm: 146,
+    targetDurationSeconds: 78,
     leadTime: 1.8,
     beatmap: stageThirteenBeatmap,
     music: music("C major", 60, "square", "triangle"),
     theme: { sky: 0xffb35c, ground: 0x4b4255, train: 0xf07f13, accent: 0xfff4a8 },
   },
+  {
+    id: "fukutoshin-neon",
+    stageNumber: 14,
+    category: "subway",
+    routeName: "メトロ ふくとしんせん",
+    vehicleName: "17000けい モチーフ",
+    worldName: "ふくとしん ネオンライン",
+    laneCount: 6,
+    environment: "neon-subway",
+    bpm: 150,
+    targetDurationSeconds: 84,
+    leadTime: 1.75,
+    beatmap: stageFourteenBeatmap,
+    music: music("B-flat major", 58, "square", "triangle"),
+    theme: { sky: 0x24162f, ground: 0x1a1022, train: 0x8b4b82, accent: 0xf3b56a },
+  },
+  {
+    id: "narita-airport-finale",
+    stageNumber: 15,
+    category: "jr",
+    routeName: "JR なりたエクスプレス",
+    vehicleName: "E259けい モチーフ",
+    worldName: "とうきょうから そらへ",
+    laneCount: 6,
+    environment: "airport-finale",
+    bpm: 154,
+    targetDurationSeconds: 90,
+    leadTime: 1.7,
+    beatmap: stageFifteenBeatmap,
+    music: music("D major", 62, "square", "triangle"),
+    theme: { sky: 0xffb877, ground: 0x3f5365, train: 0xd7353f, accent: 0xf6f8ff },
+  },
 ];
 
 export const STAGES: readonly StageConfig[] = DEFINITIONS.map((definition) => {
-  const notes = parseBeatmap(
+  const baseNotes = parseBeatmap(
     definition.beatmap,
     definition.stageNumber,
     definition.laneCount,
     definition.bpm,
     definition.music,
   );
-  const lastNoteEnd = notes.reduce(
-    (latest, note) => Math.max(latest, note.time + note.duration),
-    0,
-  );
+  const notes = expandBeatmap({
+    stageNumber: definition.stageNumber,
+    laneCount: definition.laneCount,
+    targetDurationSeconds: definition.targetDurationSeconds,
+    bpm: definition.bpm,
+    rootMidi: definition.music.rootMidi,
+    baseNotes,
+  });
+  const {
+    beatmap: _beatmap,
+    targetDurationSeconds,
+    ...stageDefinition
+  } = definition;
 
   return {
-    ...definition,
-    duration: lastNoteEnd + 3,
+    ...stageDefinition,
+    duration: targetDurationSeconds,
     notes,
     rightsStatus: "placeholder",
   };

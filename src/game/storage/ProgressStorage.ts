@@ -1,6 +1,14 @@
 export type TicketRank = "bronze" | "silver" | "gold";
 
-export interface SaveDataV2 {
+export interface SaveDataV3 {
+  version: 3;
+  unlockedStage: number;
+  clearedStages: number[];
+  bestScores: Record<string, number>;
+  bestTickets: Record<string, TicketRank>;
+}
+
+interface SaveDataV2 {
   version: 2;
   unlockedStage: number;
   clearedStages: number[];
@@ -20,13 +28,14 @@ export interface StageResult {
   ticket: TicketRank;
 }
 
-const STORAGE_KEY = "kids-proseca:progress-v2";
+const STORAGE_KEY = "kids-proseca:progress-v3";
+const V2_STORAGE_KEY = "kids-proseca:progress-v2";
 const LEGACY_STORAGE_KEY = "kids-proseca:stage-1-cleared";
 const STORAGE_WARNING =
   "このブラウザでは きろくを ほぞんできません。ゲームは そのまま あそべます。";
 const CORRUPT_WARNING =
   "きろくを よみこめなかったため、あたらしい きろくで はじめます。";
-const MAX_STAGE = 13;
+const MAX_STAGE = 15;
 const TICKET_VALUE: Record<TicketRank, number> = {
   bronze: 1,
   silver: 2,
@@ -42,7 +51,7 @@ export class ProgressStorage {
     private readonly getStorage: () => Storage = () => window.localStorage,
   ) {}
 
-  load(): StorageOutcome<SaveDataV2> {
+  load(): StorageOutcome<SaveDataV3> {
     let storage: Storage;
     try {
       storage = this.getStorage();
@@ -70,7 +79,7 @@ export class ProgressStorage {
           warning: this.persistenceUnavailable ? STORAGE_WARNING : "",
         };
       }
-      return this.migrateLegacy(storage);
+      return this.migratePrevious(storage);
     }
 
     let parsed: unknown;
@@ -94,7 +103,7 @@ export class ProgressStorage {
     return { value: cloneSave(this.memoryData), warning: "" };
   }
 
-  recordStageResult(result: StageResult): StorageOutcome<SaveDataV2> {
+  recordStageResult(result: StageResult): StorageOutcome<SaveDataV3> {
     const loaded = this.load();
     const next = cloneSave(loaded.value);
     next.unlockedStage = Math.max(
@@ -134,7 +143,48 @@ export class ProgressStorage {
     }
   }
 
-  private migrateLegacy(storage: Storage): StorageOutcome<SaveDataV2> {
+  private migratePrevious(storage: Storage): StorageOutcome<SaveDataV3> {
+    let rawV2: string | null;
+    try {
+      rawV2 = storage.getItem(V2_STORAGE_KEY);
+    } catch (error: unknown) {
+      if (!(error instanceof DOMException)) {
+        throw error;
+      }
+      return { value: cloneSave(this.memoryData), warning: STORAGE_WARNING };
+    }
+
+    if (rawV2 !== null) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(rawV2);
+      } catch (error: unknown) {
+        if (!(error instanceof SyntaxError)) {
+          throw error;
+        }
+        return { value: cloneSave(this.memoryData), warning: CORRUPT_WARNING };
+      }
+
+      if (!isSaveDataV2(parsed)) {
+        return { value: cloneSave(this.memoryData), warning: CORRUPT_WARNING };
+      }
+
+      const migrated: SaveDataV3 = {
+        version: 3,
+        unlockedStage: parsed.clearedStages.includes(13)
+          ? Math.max(14, parsed.unlockedStage)
+          : parsed.unlockedStage,
+        clearedStages: [...parsed.clearedStages],
+        bestScores: { ...parsed.bestScores },
+        bestTickets: { ...parsed.bestTickets },
+      };
+      return this.persistMigration(storage, migrated);
+    }
+
+    return this.migrateLegacy(storage);
+  }
+
+  private migrateLegacy(storage: Storage): StorageOutcome<SaveDataV3> {
     let legacyCleared = false;
     try {
       legacyCleared = storage.getItem(LEGACY_STORAGE_KEY) === "true";
@@ -165,11 +215,31 @@ export class ProgressStorage {
       return { value: cloneSave(migrated), warning: STORAGE_WARNING };
     }
   }
+
+  private persistMigration(
+    storage: Storage,
+    migrated: SaveDataV3,
+  ): StorageOutcome<SaveDataV3> {
+    this.memoryData = migrated;
+    this.hasSessionProgress = true;
+
+    try {
+      storage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      this.persistenceUnavailable = false;
+      return { value: cloneSave(migrated), warning: "" };
+    } catch (error: unknown) {
+      if (!(error instanceof DOMException)) {
+        throw error;
+      }
+      this.persistenceUnavailable = true;
+      return { value: cloneSave(migrated), warning: STORAGE_WARNING };
+    }
+  }
 }
 
-function createDefaultSave(): SaveDataV2 {
+function createDefaultSave(): SaveDataV3 {
   return {
-    version: 2,
+    version: 3,
     unlockedStage: 1,
     clearedStages: [],
     bestScores: {},
@@ -177,9 +247,9 @@ function createDefaultSave(): SaveDataV2 {
   };
 }
 
-function cloneSave(data: SaveDataV2): SaveDataV2 {
+function cloneSave(data: SaveDataV3): SaveDataV3 {
   return {
-    version: 2,
+    version: 3,
     unlockedStage: data.unlockedStage,
     clearedStages: [...data.clearedStages],
     bestScores: { ...data.bestScores },
@@ -187,8 +257,8 @@ function cloneSave(data: SaveDataV2): SaveDataV2 {
   };
 }
 
-function isSaveData(value: unknown): value is SaveDataV2 {
-  if (!isRecord(value) || value.version !== 2) {
+function isSaveData(value: unknown): value is SaveDataV3 {
+  if (!isRecord(value) || value.version !== 3) {
     return false;
   }
   if (
@@ -215,6 +285,33 @@ function isSaveData(value: unknown): value is SaveDataV2 {
     return false;
   }
   return true;
+}
+
+function isSaveDataV2(value: unknown): value is SaveDataV2 {
+  if (!isRecord(value) || value.version !== 2) {
+    return false;
+  }
+  if (
+    typeof value.unlockedStage !== "number" ||
+    !Number.isInteger(value.unlockedStage) ||
+    value.unlockedStage < 1 ||
+    value.unlockedStage > 13
+  ) {
+    return false;
+  }
+  if (
+    !Array.isArray(value.clearedStages) ||
+    value.clearedStages.some(
+      (stage) =>
+        typeof stage !== "number" ||
+        !Number.isInteger(stage) ||
+        stage < 1 ||
+        stage > 13,
+    )
+  ) {
+    return false;
+  }
+  return isNumberRecord(value.bestScores) && isTicketRecord(value.bestTickets);
 }
 
 function isNumberRecord(value: unknown): value is Record<string, number> {
