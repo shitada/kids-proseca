@@ -22,6 +22,7 @@ export class StageRenderer {
   private readonly lanePositions: readonly number[];
   private readonly laneSpacing: number;
   private readonly trainWidth: number;
+  private readonly trainLength: number;
   private readonly trainVisuals = new Map<string, THREE.Group>();
   private readonly laneLights: THREE.MeshBasicMaterial[] = [];
   private readonly lanePulses: LanePulse[];
@@ -36,6 +37,7 @@ export class StageRenderer {
     this.lanePositions = laneLayout.positions;
     this.laneSpacing = laneLayout.spacing;
     this.trainWidth = laneLayout.trainWidth;
+    this.trainLength = laneLayout.trainLength;
     this.lanePulses = Array.from(
       { length: stage.laneCount },
       () => ({ until: 0, kind: "empty" }),
@@ -72,7 +74,7 @@ export class StageRenderer {
   }
 
   render(states: readonly NoteState[], elapsed: number): void {
-    const startZ = -31;
+    const startZ = -34;
     const hitZ = 1.2;
 
     for (const state of states) {
@@ -186,7 +188,7 @@ export class StageRenderer {
     ground.position.set(0, -0.08, -14);
     this.scene.add(ground);
 
-    const railGeometry = new THREE.BoxGeometry(0.12, 0.09, 35);
+    const railGeometry = new THREE.BoxGeometry(0.12, 0.09, 38);
     const railMaterial = new THREE.MeshStandardMaterial({
       color: 0xd9e2ec,
       metalness: 0.7,
@@ -203,11 +205,11 @@ export class StageRenderer {
       const railOffset = this.trainWidth * 0.28;
       [-railOffset, railOffset].forEach((offset) => {
         const rail = new THREE.Mesh(railGeometry, railMaterial);
-        rail.position.set(laneX + offset, 0.04, -14.5);
+        rail.position.set(laneX + offset, 0.04, -16);
         this.scene.add(rail);
       });
 
-      for (let z = -31; z <= 3; z += 1.35) {
+      for (let z = -34; z <= 3; z += 1.35) {
         const sleeper = new THREE.Mesh(sleeperGeometry, sleeperMaterial);
         sleeper.position.set(laneX, 0, z);
         this.scene.add(sleeper);
@@ -265,6 +267,7 @@ export class StageRenderer {
       case "retro-subway":
       case "red-subway":
       case "deep-subway":
+      case "neon-subway":
         this.createTunnel();
         return;
       case "bay":
@@ -279,6 +282,11 @@ export class StageRenderer {
       case "finale":
         this.createCity();
         this.createCelebrationArches();
+        return;
+      case "airport-finale":
+        this.createCity();
+        this.createCelebrationArches();
+        this.createAirportRunway();
         return;
       default:
         this.createCity();
@@ -486,6 +494,24 @@ export class StageRenderer {
     }
   }
 
+  private createAirportRunway(): void {
+    const trackHalfWidth = this.getTrackHalfWidth();
+    const lightMaterial = new THREE.MeshBasicMaterial({
+      color: this.stage.theme.accent,
+    });
+
+    for (let z = -32; z <= 2; z += 2.4) {
+      [-1, 1].forEach((side) => {
+        const light = new THREE.Mesh(
+          new THREE.SphereGeometry(0.1, 8, 6),
+          lightMaterial,
+        );
+        light.position.set(side * (trackHalfWidth + 1.1), 0.18, z);
+        this.scene.add(light);
+      });
+    }
+  }
+
   private getTrackHalfWidth(): number {
     return Math.abs(this.lanePositions.at(-1) ?? 0) + this.trainWidth / 2;
   }
@@ -586,16 +612,20 @@ export class StageRenderer {
     const lightMaterial = new THREE.MeshBasicMaterial({ color: 0xfff3ad });
 
     for (let carriage = 0; carriage < carriageCount; carriage += 1) {
-      const z = carriage * -2.78;
+      const z = carriage * -(this.trainLength + 0.16);
       const body = new THREE.Mesh(
-        new THREE.BoxGeometry(this.trainWidth, 0.86, 2.6),
+        new THREE.BoxGeometry(this.trainWidth, 0.86, this.trainLength),
         bodyMaterial,
       );
       body.position.set(0, 0.5, z);
       group.add(body);
 
       const roof = new THREE.Mesh(
-        new THREE.BoxGeometry(this.trainWidth * 0.9, 0.2, 2.36),
+        new THREE.BoxGeometry(
+          this.trainWidth * 0.9,
+          0.2,
+          this.trainLength * 0.9,
+        ),
         silverMaterial,
       );
       roof.position.set(0, 1.01, z);
@@ -606,7 +636,8 @@ export class StageRenderer {
       new THREE.BoxGeometry(this.trainWidth * 0.89, 0.62, 0.16),
       silverMaterial,
     );
-    face.position.set(0, 0.55, 1.37);
+    const frontZ = this.trainLength / 2 + 0.07;
+    face.position.set(0, 0.55, frontZ);
     group.add(face);
 
     const windowGeometry = new THREE.BoxGeometry(
@@ -616,14 +647,14 @@ export class StageRenderer {
     );
     [-this.trainWidth * 0.2, this.trainWidth * 0.2].forEach((x) => {
       const windowMesh = new THREE.Mesh(windowGeometry, glassMaterial);
-      windowMesh.position.set(x, 0.69, 1.46);
+      windowMesh.position.set(x, 0.69, frontZ + 0.09);
       group.add(windowMesh);
     });
 
     const lightGeometry = new THREE.SphereGeometry(0.08, 12, 8);
     [-this.trainWidth * 0.34, this.trainWidth * 0.34].forEach((x) => {
       const light = new THREE.Mesh(lightGeometry, lightMaterial);
-      light.position.set(x, 0.35, 1.49);
+      light.position.set(x, 0.35, frontZ + 0.12);
       group.add(light);
     });
 

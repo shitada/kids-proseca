@@ -10,7 +10,7 @@ import {
 } from "./rhythm/types";
 import {
   ProgressStorage,
-  type SaveDataV2,
+  type SaveDataV3,
   type TicketRank,
 } from "./storage/ProgressStorage";
 
@@ -33,7 +33,7 @@ export class GameApp {
   private readonly root: HTMLElement;
   private readonly audio = new AudioEngine();
   private readonly progressStorage = new ProgressStorage();
-  private progress: SaveDataV2;
+  private progress: SaveDataV3;
   private currentStage: StageConfig = FIRST_STAGE;
   private screen: GameScreen = "title";
   private playRequestId = 0;
@@ -207,7 +207,7 @@ export class GameApp {
         >
           <span class="stage-number">${unlocked ? `STAGE ${stage.stageNumber}` : "🔒"}</span>
           <strong>${unlocked ? stage.routeName : "？？？"}</strong>
-          <small>${unlocked ? `${category}・${stage.worldName}・${stage.laneCount}レーン` : "まえの ステージを クリアしよう"}</small>
+          <small>${unlocked ? `${category}・${stage.worldName}・${stage.laneCount}レーン・${stage.duration}びょう` : "まえの ステージを クリアしよう"}</small>
           <span class="stage-ticket">${ticketIcon}</span>
         </button>
       `;
@@ -658,7 +658,7 @@ export class GameApp {
           ${
             nextStage
               ? `<button class="primary-button" data-action="next-stage">つぎの ステージへ</button>`
-              : `<p class="all-clear-message">13の ろせんに おとが もどったよ！</p>`
+              : `<p class="all-clear-message">${STAGES.length}の ろせんに おとが もどったよ！</p>`
           }
           <button class="primary-button" data-action="replay">もういちど</button>
           <button class="secondary-button" data-action="result-map">ステージを えらぶ</button>

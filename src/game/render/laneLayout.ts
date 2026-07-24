@@ -4,6 +4,7 @@ export interface LaneLayout {
   positions: readonly number[];
   spacing: number;
   trainWidth: number;
+  trainLength: number;
 }
 
 export function createLaneLayout(laneCount: LaneCount): LaneLayout {
@@ -17,7 +18,7 @@ export function createLaneLayout(laneCount: LaneCount): LaneLayout {
   return {
     positions,
     spacing,
-    trainWidth: Math.min(2.4, spacing * 0.74),
+    trainWidth: Math.min(1.8, spacing * 0.68),
+    trainLength: Math.min(1.8, spacing * 0.68) * 1.8,
   };
 }
-
