@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { FIRST_STAGE } from "../src/game/config/stages";
+import { FIRST_STAGE, STAGES } from "../src/game/config/stages";
+import {
+  buildDiatonicTriad,
+  isMidiInMajorScale,
+  midiToFrequency,
+  scaleDegreeToMidi,
+} from "../src/game/music/MusicTheory";
 import { JudgementEngine } from "../src/game/rhythm/JudgementEngine";
 import type { RhythmNote } from "../src/game/rhythm/types";
 import { ProgressStorage } from "../src/game/storage/ProgressStorage";
+import { createLaneLayout } from "../src/game/render/laneLayout";
 
 const notes: readonly RhythmNote[] = [
-  { id: "left", lane: 0, time: 1, type: "tap", duration: 0, frequency: 440 },
-  { id: "right", lane: 1, time: 2, type: "tap", duration: 0, frequency: 660 },
+  { id: "left", lane: 0, time: 1, type: "tap", duration: 0, midiNote: 69 },
+  { id: "right", lane: 1, time: 2, type: "tap", duration: 0, midiNote: 76 },
 ];
 
 describe("JudgementEngine", () => {
@@ -58,7 +65,7 @@ describe("JudgementEngine", () => {
       time: 1,
       type: "hold",
       duration: 1,
-      frequency: 440,
+      midiNote: 69,
     };
     const engine = new JudgementEngine([holdNote], {
       perfect: 0.1,
@@ -80,7 +87,7 @@ describe("JudgementEngine", () => {
       time: 1,
       type: "hold",
       duration: 1,
-      frequency: 440,
+      midiNote: 69,
     };
     const engine = new JudgementEngine([holdNote], {
       perfect: 0.1,
@@ -99,6 +106,24 @@ describe("JudgementEngine", () => {
     engine.setAssistEnabled(true);
     expect(engine.hit(0, 1.3).kind).toBe("good");
   });
+
+  it("judges notes on the sixth lane", () => {
+    const engine = new JudgementEngine(
+      [
+        {
+          id: "sixth-lane",
+          lane: 5,
+          time: 1,
+          type: "tap",
+          duration: 0,
+          midiNote: 72,
+        },
+      ],
+      { perfect: 0.1, good: 0.25 },
+    );
+
+    expect(engine.hit(5, 1).kind).toBe("perfect");
+  });
 });
 
 describe("FIRST_STAGE", () => {
@@ -110,17 +135,128 @@ describe("FIRST_STAGE", () => {
     expect(FIRST_STAGE.notes.length).toBeGreaterThan(20);
     expect(lastTime).toBeLessThan(FIRST_STAGE.duration);
   });
+
+  describe("STAGES", () => {
+    it("defines 13 sequential stages with the planned lane progression", () => {
+      expect(STAGES.map((stage) => stage.stageNumber)).toEqual([
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+      ]);
+      expect(STAGES.map((stage) => stage.laneCount)).toEqual([
+        2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6,
+      ]);
+    });
+
+    it("keeps the requested JR, private, and subway balance", () => {
+      expect(STAGES.filter((stage) => stage.category === "jr")).toHaveLength(3);
+      expect(STAGES.filter((stage) => stage.category === "private")).toHaveLength(
+        7,
+      );
+      expect(STAGES.filter((stage) => stage.category === "subway")).toHaveLength(
+        3,
+      );
+    });
+
+    it("keeps every note and backing chord inside its stage scale", () => {
+      for (const stage of STAGES) {
+        for (const note of stage.notes) {
+          expect(note.lane).toBeLessThan(stage.laneCount);
+          expect(isMidiInMajorScale(stage.music.rootMidi, note.midiNote)).toBe(
+            true,
+          );
+        }
+
+        for (const degree of stage.music.chordProgression) {
+          for (const midiNote of buildDiatonicTriad(
+            stage.music.rootMidi,
+            degree,
+          )) {
+            expect(isMidiInMajorScale(stage.music.rootMidi, midiNote)).toBe(true);
+          }
+        }
+      }
+    });
+  });
+
+  it("keeps tap notes and backing chords inside the configured scale", () => {
+    for (const note of FIRST_STAGE.notes) {
+      expect(
+        isMidiInMajorScale(FIRST_STAGE.music.rootMidi, note.midiNote),
+      ).toBe(true);
+    }
+
+    for (const degree of FIRST_STAGE.music.chordProgression) {
+      for (const midiNote of buildDiatonicTriad(
+        FIRST_STAGE.music.rootMidi,
+        degree,
+      )) {
+        expect(
+          isMidiInMajorScale(FIRST_STAGE.music.rootMidi, midiNote),
+        ).toBe(true);
+      }
+    }
+  });
+});
+
+describe("MusicTheory", () => {
+  it("converts A4 MIDI note 69 to 440Hz", () => {
+    expect(midiToFrequency(69)).toBeCloseTo(440, 8);
+  });
+
+  describe("createLaneLayout", () => {
+    it("centers layouts from two through six lanes", () => {
+      for (const laneCount of [2, 3, 4, 5, 6] as const) {
+        const layout = createLaneLayout(laneCount);
+        expect(layout.positions).toHaveLength(laneCount);
+        expect(
+          layout.positions.reduce((sum, position) => sum + position, 0),
+        ).toBeCloseTo(0, 8);
+      }
+    });
+  });
+
+  it("builds a major scale without out-of-key notes", () => {
+    const rootMidi = 60;
+    for (let degree = 0; degree <= 7; degree += 1) {
+      expect(
+        isMidiInMajorScale(rootMidi, scaleDegreeToMidi(rootMidi, degree)),
+      ).toBe(true);
+    }
+  });
 });
 
 describe("ProgressStorage", () => {
-  it("persists the first-stage completion flag", () => {
+  it("unlocks the next stage and persists best results", () => {
     const values = new Map<string, string>();
     const storage = createStorage(values);
     const progress = new ProgressStorage(() => storage);
 
-    expect(progress.readStageOneCleared().value).toBe(false);
-    expect(progress.saveStageOneCleared().warning).toBe("");
-    expect(progress.readStageOneCleared().value).toBe(true);
+    expect(progress.load().value.unlockedStage).toBe(1);
+    const saved = progress.recordStageResult({
+      stageNumber: 1,
+      stageId: STAGES[0]?.id ?? "stage-1",
+      score: 1200,
+      ticket: "silver",
+    });
+
+    expect(saved.warning).toBe("");
+    expect(saved.value.unlockedStage).toBe(2);
+    expect(saved.value.clearedStages).toEqual([1]);
+    expect(progress.load().value.bestScores[STAGES[0]?.id ?? "stage-1"]).toBe(
+      1200,
+    );
+  });
+
+  it("migrates the legacy stage-one completion flag", () => {
+    const values = new Map<string, string>([
+      ["kids-proseca:stage-1-cleared", "true"],
+    ]);
+    const progress = new ProgressStorage(() => createStorage(values));
+
+    expect(progress.load().value).toMatchObject({
+      version: 2,
+      unlockedStage: 2,
+      clearedStages: [1],
+    });
   });
 
   it("surfaces blocked storage without stopping progress", () => {
@@ -128,16 +264,39 @@ describe("ProgressStorage", () => {
       throw new DOMException("Blocked", "SecurityError");
     });
 
-    expect(progress.readStageOneCleared()).toEqual({
-      value: false,
-      warning:
-        "このブラウザでは きろくを ほぞんできません。ゲームは そのまま あそべます。",
+    expect(progress.load().warning).toBe(
+      "このブラウザでは きろくを ほぞんできません。ゲームは そのまま あそべます。",
+    );
+    expect(
+      progress.recordStageResult({
+        stageNumber: 1,
+        stageId: "stage-1",
+        score: 100,
+        ticket: "bronze",
+      }).value.unlockedStage,
+    ).toBe(2);
+  });
+
+  it("keeps session unlocks when reads work but writes are blocked", () => {
+    const values = new Map<string, string>();
+    const storage = createStorage(values, true);
+    const progress = new ProgressStorage(() => storage);
+
+    progress.recordStageResult({
+      stageNumber: 1,
+      stageId: "stage-1",
+      score: 100,
+      ticket: "bronze",
     });
-    expect(progress.saveStageOneCleared().value).toBe(true);
+
+    expect(progress.load().value.unlockedStage).toBe(2);
   });
 });
 
-function createStorage(values: Map<string, string>): Storage {
+function createStorage(
+  values: Map<string, string>,
+  rejectWrites = false,
+): Storage {
   return {
     get length() {
       return values.size;
@@ -149,6 +308,9 @@ function createStorage(values: Map<string, string>): Storage {
       values.delete(key);
     },
     setItem: (key, value) => {
+      if (rejectWrites) {
+        throw new DOMException("Blocked", "QuotaExceededError");
+      }
       values.set(key, value);
     },
   };

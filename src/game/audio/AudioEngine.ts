@@ -1,4 +1,9 @@
 import type { StageConfig } from "../config/stages";
+import {
+  buildDiatonicTriad,
+  midiToFrequency,
+  scaleDegreeToMidi,
+} from "../music/MusicTheory";
 import type { JudgementKind } from "../rhythm/types";
 
 export class AudioEngine {
@@ -70,25 +75,28 @@ export class AudioEngine {
     return (performance.now() - this.fallbackStartTime) / 1000;
   }
 
-  playTrainNote(frequency: number, judgement: JudgementKind): void {
+  playTrainNote(midiNote: number, judgement: JudgementKind): void {
     if (!this.context || !this.sfxGain || judgement === "empty") {
       return;
     }
 
     const now = this.context.currentTime;
     const volume = judgement === "perfect" ? 0.18 : 0.12;
+    const frequency = midiToFrequency(midiNote);
     this.createTone(now, frequency, 0.2, volume, "sine", this.sfxGain);
     this.createTone(now, frequency * 2, 0.11, volume * 0.35, "triangle", this.sfxGain);
   }
 
-  playClear(): void {
+  playClear(stage: StageConfig): void {
     if (!this.context || !this.sfxGain) {
       return;
     }
 
     const now = this.context.currentTime;
     const sfxGain = this.sfxGain;
-    const frequencies = [523.25, 659.25, 783.99, 1046.5];
+    const frequencies = [0, 2, 4, 7].map((degree) =>
+      midiToFrequency(scaleDegreeToMidi(stage.music.rootMidi, degree)),
+    );
 
     frequencies.forEach((frequency, index) => {
       this.createTone(
@@ -177,9 +185,13 @@ export class AudioEngine {
     for (let beat = 0; beat < beatCount; beat += 1) {
       const time = this.stageStartTime + beat * beatDuration;
       const downBeat = beat % 4 === 0;
+      const pulseMidi = scaleDegreeToMidi(
+        stage.music.rootMidi - 12,
+        downBeat ? 0 : 4,
+      );
       this.createTone(
         time,
-        downBeat ? 130.81 : 196,
+        midiToFrequency(pulseMidi),
         downBeat ? 0.16 : 0.08,
         downBeat ? 0.11 : 0.055,
         "sine",
@@ -187,14 +199,21 @@ export class AudioEngine {
       );
 
       if (downBeat) {
-        const chord = beat % 8 === 0 ? [261.63, 329.63, 392] : [293.66, 369.99, 440];
-        chord.forEach((frequency) => {
+        const progressionIndex =
+          Math.floor(beat / 4) % stage.music.chordProgression.length;
+        const chordDegree =
+          stage.music.chordProgression[progressionIndex] ?? 0;
+        const chord = buildDiatonicTriad(
+          stage.music.rootMidi,
+          chordDegree,
+        );
+        chord.forEach((midiNote) => {
           this.createTone(
             time,
-            frequency,
+            midiToFrequency(midiNote),
             beatDuration * 3.7,
             0.018,
-            "sine",
+            stage.music.padWave,
             musicGain,
           );
         });

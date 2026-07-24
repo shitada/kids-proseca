@@ -1,16 +1,40 @@
 import { AudioEngine } from "./audio/AudioEngine";
-import { FIRST_STAGE } from "./config/stages";
+import { FIRST_STAGE, STAGES, getStage, type StageConfig } from "./config/stages";
 import { StageRenderer } from "./render/StageRenderer";
 import { JudgementEngine } from "./rhythm/JudgementEngine";
-import type { JudgementKind, LaneIndex } from "./rhythm/types";
-import { ProgressStorage } from "./storage/ProgressStorage";
+import {
+  isLaneIndex,
+  type JudgementKind,
+  type LaneCount,
+  type LaneIndex,
+} from "./rhythm/types";
+import {
+  ProgressStorage,
+  type SaveDataV2,
+  type TicketRank,
+} from "./storage/ProgressStorage";
 
-type GameScreen = "title" | "tutorial" | "playing" | "result";
+type GameScreen =
+  | "title"
+  | "tutorial"
+  | "stage-select"
+  | "playing"
+  | "result";
+
+const KEYBOARD_LAYOUTS: Record<LaneCount, readonly string[]> = {
+  2: ["KeyF", "KeyJ"],
+  3: ["KeyD", "KeyF", "KeyJ"],
+  4: ["KeyD", "KeyF", "KeyJ", "KeyK"],
+  5: ["KeyS", "KeyD", "KeyF", "KeyJ", "KeyK"],
+  6: ["KeyS", "KeyD", "KeyF", "KeyJ", "KeyK", "KeyL"],
+};
 
 export class GameApp {
   private readonly root: HTMLElement;
   private readonly audio = new AudioEngine();
   private readonly progressStorage = new ProgressStorage();
+  private progress: SaveDataV2;
+  private currentStage: StageConfig = FIRST_STAGE;
   private screen: GameScreen = "title";
   private playRequestId = 0;
   private resuming = false;
@@ -31,6 +55,9 @@ export class GameApp {
 
   constructor(root: HTMLElement) {
     this.root = root;
+    const loaded = this.progressStorage.load();
+    this.progress = loaded.value;
+    this.storageWarning = loaded.warning;
   }
 
   mount(): void {
@@ -47,9 +74,9 @@ export class GameApp {
     this.playRequestId += 1;
     this.stopStage();
     this.screen = "title";
-    const progress = this.progressStorage.readStageOneCleared();
-    const cleared = progress.value;
-    this.storageWarning = progress.warning;
+    const loaded = this.progressStorage.load();
+    this.progress = loaded.value;
+    this.storageWarning = loaded.warning;
 
     this.root.innerHTML = `
       <section class="title-screen">
@@ -65,8 +92,9 @@ export class GameApp {
             リズムに あわせて タップしよう
           </p>
           <button class="primary-button" data-action="play">
-            ${cleared ? "もういちど あそぶ" : "あそぶ"}
+            ${this.progress.unlockedStage > 1 ? "つづきから" : "あそぶ"}
           </button>
+          <button class="secondary-button" data-action="stages">ステージを えらぶ</button>
           <button class="secondary-button" data-action="tutorial">あそびかた</button>
           <p class="rights-badge">かいはつようの かりデザイン・オリジナルおんげん</p>
           ${this.audioWarning ? `<p class="audio-warning">${this.audioWarning}</p>` : ""}
@@ -83,6 +111,10 @@ export class GameApp {
       "click",
       this.showTutorial,
     );
+    this.query<HTMLButtonElement>("[data-action='stages']").addEventListener(
+      "click",
+      this.showStageSelect,
+    );
   }
 
   private readonly handlePlay = (event: Event): void => {
@@ -94,6 +126,7 @@ export class GameApp {
 
     button.disabled = true;
     button.textContent = "おとを じゅんびちゅう…";
+    const stage = getStage(this.progress.unlockedStage) ?? FIRST_STAGE;
     const requestId = ++this.playRequestId;
     const unlock = this.audio.unlock();
     void unlock
@@ -102,7 +135,7 @@ export class GameApp {
           return;
         }
         this.audioWarning = "";
-        this.startStage();
+        this.startStage(stage);
       })
       .catch((error: unknown) => {
         if (requestId !== this.playRequestId || this.screen !== "title") {
@@ -110,7 +143,7 @@ export class GameApp {
         }
         this.audio.useSilentFallback();
         this.audioWarning = `おとを さいせいできませんでした。えだけで あそべます。（${this.errorMessage(error)}）`;
-        this.startStage();
+        this.startStage(stage);
       });
   };
 
@@ -131,7 +164,8 @@ export class GameApp {
           <div class="tutorial-steps">
             <p><strong>1</strong> でんしゃが うえから くるよ</p>
             <p><strong>2</strong> ひかる えきに ついたら タップ</p>
-            <p><strong>3</strong> おとを つないで ゴールしよう</p>
+            <p><strong>3</strong> ながい でんしゃは おしたまま</p>
+            <p><strong>4</strong> すすむと せんろが 6ほんまで ふえるよ</p>
           </div>
           <button class="primary-button" data-action="close-tutorial">わかった！</button>
         </div>
@@ -142,8 +176,111 @@ export class GameApp {
     ).addEventListener("click", () => this.showTitle(), { once: true });
   };
 
-  private startStage(): void {
+  private readonly showStageSelect = (event?: Event): void => {
+    event?.preventDefault();
+    this.playRequestId += 1;
     this.stopStage();
+    this.screen = "stage-select";
+    const loaded = this.progressStorage.load();
+    this.progress = loaded.value;
+    this.storageWarning = loaded.warning;
+
+    const stageCards = STAGES.map((stage) => {
+      const unlocked = stage.stageNumber <= this.progress.unlockedStage;
+      const cleared = this.progress.clearedStages.includes(stage.stageNumber);
+      const ticket = this.progress.bestTickets[stage.id];
+      const category =
+        stage.category === "jr"
+          ? "JR"
+          : stage.category === "subway"
+            ? "ちかてつ"
+            : "してつなど";
+      const ticketIcon =
+        ticket === "gold" ? "🥇" : ticket === "silver" ? "🥈" : ticket === "bronze" ? "🎫" : "";
+
+      return `
+        <button
+          class="stage-card ${cleared ? "is-cleared" : ""}"
+          data-stage="${stage.stageNumber}"
+          ${unlocked ? "" : "disabled"}
+          aria-label="ステージ${stage.stageNumber} ${stage.routeName}${unlocked ? "" : " ロック"}"
+        >
+          <span class="stage-number">${unlocked ? `STAGE ${stage.stageNumber}` : "🔒"}</span>
+          <strong>${unlocked ? stage.routeName : "？？？"}</strong>
+          <small>${unlocked ? `${category}・${stage.worldName}・${stage.laneCount}レーン` : "まえの ステージを クリアしよう"}</small>
+          <span class="stage-ticket">${ticketIcon}</span>
+        </button>
+      `;
+    }).join("");
+
+    this.root.innerHTML = `
+      <section class="stage-select-screen">
+        <header class="stage-select-header">
+          <div>
+            <p class="eyebrow">とうきょう ろせんマップ</p>
+            <h2>ステージを えらぼう</h2>
+          </div>
+          <button class="round-button" data-action="stage-home" aria-label="ホームにもどる">⌂</button>
+        </header>
+        <div class="stage-map">${stageCards}</div>
+        ${this.storageWarning ? `<p class="audio-warning">${this.storageWarning}</p>` : ""}
+      </section>
+    `;
+
+    this.query<HTMLButtonElement>("[data-action='stage-home']").addEventListener(
+      "click",
+      () => this.showTitle(),
+    );
+    this.root
+      .querySelectorAll<HTMLButtonElement>("[data-stage]:not(:disabled)")
+      .forEach((button) => {
+        button.addEventListener("click", this.handleStageChoice);
+      });
+  };
+
+  private readonly handleStageChoice = (event: Event): void => {
+    event.preventDefault();
+    const button = event.currentTarget;
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    const stageNumber = Number(button.dataset.stage);
+    const stage = getStage(stageNumber);
+    if (!stage || stage.stageNumber > this.progress.unlockedStage) {
+      return;
+    }
+
+    button.disabled = true;
+    const requestId = ++this.playRequestId;
+    const unlock = this.audio.unlock();
+    void unlock
+      .then(() => {
+        if (
+          requestId !== this.playRequestId ||
+          this.screen !== "stage-select"
+        ) {
+          return;
+        }
+        this.audioWarning = "";
+        this.startStage(stage);
+      })
+      .catch((error: unknown) => {
+        if (
+          requestId !== this.playRequestId ||
+          this.screen !== "stage-select"
+        ) {
+          return;
+        }
+        this.audio.useSilentFallback();
+        this.audioWarning = `おとを さいせいできませんでした。えだけで あそべます。（${this.errorMessage(error)}）`;
+        this.startStage(stage);
+      });
+  };
+
+  private startStage(stage: StageConfig = this.currentStage): void {
+    this.stopStage();
+    this.currentStage = stage;
     this.screen = "playing";
     this.paused = false;
     this.resuming = false;
@@ -155,7 +292,7 @@ export class GameApp {
     this.misses = 0;
     this.missStreak = 0;
     this.assistHitsRemaining = 0;
-    this.judgement = new JudgementEngine(FIRST_STAGE.notes, {
+    this.judgement = new JudgementEngine(stage.notes, {
       perfect: 0.18,
       good: 0.34,
     });
@@ -166,8 +303,8 @@ export class GameApp {
         <header class="game-hud">
           <button class="round-button" data-action="home" aria-label="ホームにもどる">⌂</button>
           <div class="stage-label">
-            <small>ステージ ${FIRST_STAGE.stageNumber}</small>
-            <strong>${FIRST_STAGE.routeName}</strong>
+            <small>ステージ ${stage.stageNumber}・${stage.laneCount}レーン</small>
+            <strong>${stage.routeName}</strong>
           </div>
           <div class="score-panel">
             <span>スコア <strong data-ui="score">0</strong></span>
@@ -183,13 +320,8 @@ export class GameApp {
         <div class="feedback" data-ui="feedback" aria-live="polite"></div>
         <div class="assist-badge" data-ui="assist" hidden>✨ おたすけガイド</div>
         ${this.audioWarning ? `<p class="in-game-warning">${this.audioWarning}</p>` : ""}
-        <div class="lane-controls">
-          <button class="lane-button lane-left" data-lane="0" aria-label="ひだりのせんろ">
-            <span>ひだり</span>
-          </button>
-          <button class="lane-button lane-right" data-lane="1" aria-label="みぎのせんろ">
-            <span>みぎ</span>
-          </button>
+        <div class="lane-controls" style="--lane-count: ${stage.laneCount}">
+          ${this.renderLaneButtons(stage.laneCount)}
         </div>
         <div class="pause-overlay" data-ui="pause-overlay" hidden>
           <div>
@@ -202,7 +334,7 @@ export class GameApp {
     `;
 
     const canvas = this.query<HTMLCanvasElement>(".game-canvas");
-    this.stageRenderer = new StageRenderer(canvas, FIRST_STAGE);
+    this.stageRenderer = new StageRenderer(canvas, stage);
 
     this.root.querySelectorAll<HTMLButtonElement>("[data-lane]").forEach((button) => {
       button.addEventListener("pointerdown", this.handleLaneTap);
@@ -228,7 +360,7 @@ export class GameApp {
     window.addEventListener("keydown", this.handleKeyDown);
     window.addEventListener("keyup", this.handleKeyUp);
 
-    this.audio.startStage(FIRST_STAGE);
+    this.audio.startStage(stage);
     this.animationFrame = requestAnimationFrame(this.tick);
   }
 
@@ -239,7 +371,10 @@ export class GameApp {
       return;
     }
 
-    const lane = button.dataset.lane === "0" ? 0 : 1;
+    const lane = this.parseButtonLane(button);
+    if (lane === null) {
+      return;
+    }
     this.pressLane(lane);
     button.classList.remove("is-pressed");
     void button.offsetWidth;
@@ -252,7 +387,10 @@ export class GameApp {
       return;
     }
 
-    const lane = button.dataset.lane === "0" ? 0 : 1;
+    const lane = this.parseButtonLane(button);
+    if (lane === null) {
+      return;
+    }
     const result = this.judgement.release(lane, this.audio.getElapsed());
     button.classList.remove("is-holding");
 
@@ -268,10 +406,9 @@ export class GameApp {
       return;
     }
 
-    if (event.code === "KeyF" || event.code === "ArrowLeft") {
-      this.pressLane(0);
-    } else if (event.code === "KeyJ" || event.code === "ArrowRight") {
-      this.pressLane(1);
+    const lane = this.getKeyboardLane(event.code);
+    if (lane !== null) {
+      this.pressLane(lane);
     }
   };
 
@@ -280,12 +417,7 @@ export class GameApp {
       return;
     }
 
-    const lane =
-      event.code === "KeyF" || event.code === "ArrowLeft"
-        ? 0
-        : event.code === "KeyJ" || event.code === "ArrowRight"
-          ? 1
-          : null;
+    const lane = this.getKeyboardLane(event.code);
     if (lane === null) {
       return;
     }
@@ -315,7 +447,7 @@ export class GameApp {
     }
 
     if (result.phase === "hold-start") {
-      this.audio.playTrainNote(result.note.frequency, result.kind);
+      this.audio.playTrainNote(result.note.midiNote, result.kind);
       this.stageRenderer?.pulseLane(lane, result.kind, elapsed);
       this.root
         .querySelector<HTMLButtonElement>(`[data-lane="${lane}"]`)
@@ -330,7 +462,7 @@ export class GameApp {
   private registerHit(result: {
     kind: JudgementKind;
     phase: string;
-    note?: { frequency: number; lane: LaneIndex };
+    note?: { midiNote: number; lane: LaneIndex };
   }): void {
     if (!result.note || result.kind === "empty") {
       return;
@@ -354,7 +486,7 @@ export class GameApp {
       this.showFeedback("いいね！", result.kind);
     }
 
-    this.audio.playTrainNote(result.note.frequency, result.kind);
+    this.audio.playTrainNote(result.note.midiNote, result.kind);
     this.stageRenderer?.pulseLane(
       result.note.lane,
       result.kind,
@@ -400,7 +532,7 @@ export class GameApp {
     this.updateProgress(elapsed);
     this.updateCountdown(elapsed);
 
-    if (elapsed >= FIRST_STAGE.duration) {
+    if (elapsed >= this.currentStage.duration) {
       this.finishStage();
       return;
     }
@@ -430,7 +562,10 @@ export class GameApp {
   }
 
   private updateProgress(elapsed: number): void {
-    const progress = Math.max(0, Math.min(1, elapsed / FIRST_STAGE.duration));
+    const progress = Math.max(
+      0,
+      Math.min(1, elapsed / this.currentStage.duration),
+    );
     this.query<HTMLElement>("[data-ui='progress']").style.width =
       `${progress * 100}%`;
   }
@@ -471,9 +606,26 @@ export class GameApp {
 
     cancelAnimationFrame(this.animationFrame);
     const summary = this.judgement.getSummary();
-    this.storageWarning = this.progressStorage.saveStageOneCleared().warning;
+    const hitCount = summary.perfect + summary.good;
+    const accuracy = summary.total === 0 ? 0 : hitCount / summary.total;
+    const ticketRank: TicketRank =
+      accuracy >= 0.85 ? "gold" : accuracy >= 0.6 ? "silver" : "bronze";
+    const ticketLabel =
+      ticketRank === "gold"
+        ? "きんの きっぷ"
+        : ticketRank === "silver"
+          ? "ぎんの きっぷ"
+          : "きっぷ";
+    const saved = this.progressStorage.recordStageResult({
+      stageNumber: this.currentStage.stageNumber,
+      stageId: this.currentStage.id,
+      score: this.score,
+      ticket: ticketRank,
+    });
+    this.progress = saved.value;
+    this.storageWarning = saved.warning;
     this.audio.stopStage();
-    this.audio.playClear();
+    this.audio.playClear(this.currentStage);
     this.stageRenderer?.dispose();
     this.stageRenderer = null;
     this.judgement = null;
@@ -481,18 +633,17 @@ export class GameApp {
     window.removeEventListener("keyup", this.handleKeyUp);
     this.screen = "result";
 
-    const hitCount = summary.perfect + summary.good;
-    const accuracy = summary.total === 0 ? 0 : hitCount / summary.total;
-    const ticket =
-      accuracy >= 0.85 ? "きんの きっぷ" : accuracy >= 0.6 ? "ぎんの きっぷ" : "きっぷ";
+    const nextStage = getStage(this.currentStage.stageNumber + 1);
+    const allClear = this.currentStage.stageNumber === STAGES.length;
 
     this.root.innerHTML = `
       <section class="result-screen">
         <div class="result-card">
           <div class="result-stars" aria-hidden="true">⭐ 🚃 ⭐</div>
-          <p class="eyebrow">ステージ クリア！</p>
-          <h2>やったね！</h2>
-          <p class="ticket">${ticket}を もらったよ</p>
+          <p class="eyebrow">ステージ ${this.currentStage.stageNumber} クリア！</p>
+          <h2>${allClear ? "ぜんろせん クリア！" : "やったね！"}</h2>
+          <p class="result-route">${this.currentStage.routeName}</p>
+          <p class="ticket">${ticketLabel}を もらったよ</p>
           <dl class="result-grid">
             <div><dt>ぴったり</dt><dd>${summary.perfect}</dd></div>
             <div><dt>いいね</dt><dd>${summary.good}</dd></div>
@@ -504,15 +655,30 @@ export class GameApp {
             じどうせいせいした オリジナルきょくを つかっています
           </p>
           ${this.storageWarning ? `<p class="audio-warning">${this.storageWarning}</p>` : ""}
+          ${
+            nextStage
+              ? `<button class="primary-button" data-action="next-stage">つぎの ステージへ</button>`
+              : `<p class="all-clear-message">13の ろせんに おとが もどったよ！</p>`
+          }
           <button class="primary-button" data-action="replay">もういちど</button>
+          <button class="secondary-button" data-action="result-map">ステージを えらぶ</button>
           <button class="secondary-button" data-action="result-home">ホームへ</button>
         </div>
       </section>
     `;
 
+    if (nextStage) {
+      this.query<HTMLButtonElement>(
+        "[data-action='next-stage']",
+      ).addEventListener("click", () => this.startStage(nextStage));
+    }
     this.query<HTMLButtonElement>("[data-action='replay']").addEventListener(
       "click",
       () => this.startStage(),
+    );
+    this.query<HTMLButtonElement>("[data-action='result-map']").addEventListener(
+      "click",
+      () => this.showStageSelect(),
     );
     this.query<HTMLButtonElement>("[data-action='result-home']").addEventListener(
       "click",
@@ -601,6 +767,30 @@ export class GameApp {
     this.resuming = false;
     window.removeEventListener("keydown", this.handleKeyDown);
     window.removeEventListener("keyup", this.handleKeyUp);
+  }
+
+  private renderLaneButtons(laneCount: LaneCount): string {
+    return Array.from(
+      { length: laneCount },
+      (_, lane) => `
+        <button class="lane-button" data-lane="${lane}" aria-label="${lane + 1}ばんの せんろ">
+          <span>${lane + 1}</span>
+        </button>
+      `,
+    ).join("");
+  }
+
+  private parseButtonLane(button: HTMLButtonElement): LaneIndex | null {
+    const lane = Number(button.dataset.lane);
+    if (!isLaneIndex(lane) || lane >= this.currentStage.laneCount) {
+      return null;
+    }
+    return lane;
+  }
+
+  private getKeyboardLane(code: string): LaneIndex | null {
+    const lane = KEYBOARD_LAYOUTS[this.currentStage.laneCount].indexOf(code);
+    return isLaneIndex(lane) && lane < this.currentStage.laneCount ? lane : null;
   }
 
   private query<T extends Element>(selector: string): T {

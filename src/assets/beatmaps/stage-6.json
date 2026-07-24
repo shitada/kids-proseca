@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "notes": [
+    { "beat": 4, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 0 },
+    { "beat": 5.5, "lane": 1, "type": "tap", "durationBeats": 0, "scaleDegree": 2 },
+    { "beat": 7, "lane": 2, "type": "tap", "durationBeats": 0, "scaleDegree": 4 },
+    { "beat": 8.5, "lane": 1, "type": "tap", "durationBeats": 0, "scaleDegree": 3 },
+    { "beat": 10, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 1 },
+    { "beat": 11, "lane": 2, "type": "tap", "durationBeats": 0, "scaleDegree": 5 },
+    { "beat": 12.5, "lane": 1, "type": "tap", "durationBeats": 0, "scaleDegree": 4 },
+    { "beat": 14, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 2 },
+    { "beat": 15.5, "lane": 2, "type": "tap", "durationBeats": 0, "scaleDegree": 6 },
+    { "beat": 17, "lane": 1, "type": "tap", "durationBeats": 0, "scaleDegree": 5 },
+    { "beat": 18, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 3 },
+    { "beat": 19.5, "lane": 2, "type": "tap", "durationBeats": 0, "scaleDegree": 7 },
+    { "beat": 21, "lane": 1, "type": "tap", "durationBeats": 0, "scaleDegree": 5 },
+    { "beat": 22.5, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 4 },
+    { "beat": 24, "lane": 2, "type": "tap", "durationBeats": 0, "scaleDegree": 2 },
+    { "beat": 25, "lane": 1, "type": "tap", "durationBeats": 0, "scaleDegree": 1 },
+    { "beat": 26.5, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 0 },
+    { "beat": 28, "lane": 1, "type": "hold", "durationBeats": 2, "scaleDegree": 2 },
+    { "beat": 31, "lane": 2, "type": "tap", "durationBeats": 0, "scaleDegree": 4 },
+    { "beat": 32, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 0 }
+  ]
+}
+

@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "notes": [
+    { "beat": 4, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 0 },
+    { "beat": 4.5, "lane": 1, "type": "tap", "durationBeats": 0, "scaleDegree": 1 },
+    { "beat": 5, "lane": 2, "type": "tap", "durationBeats": 0, "scaleDegree": 2 },
+    { "beat": 5.5, "lane": 3, "type": "tap", "durationBeats": 0, "scaleDegree": 3 },
+    { "beat": 6, "lane": 4, "type": "tap", "durationBeats": 0, "scaleDegree": 4 },
+    { "beat": 8, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 2 },
+    { "beat": 8, "lane": 4, "type": "tap", "durationBeats": 0, "scaleDegree": 6 },
+    { "beat": 11, "lane": 1, "type": "hold", "durationBeats": 2, "scaleDegree": 3 },
+    { "beat": 11, "lane": 3, "type": "tap", "durationBeats": 0, "scaleDegree": 5 },
+    { "beat": 14, "lane": 4, "type": "tap", "durationBeats": 0, "scaleDegree": 7 },
+    { "beat": 14.5, "lane": 3, "type": "tap", "durationBeats": 0, "scaleDegree": 6 },
+    { "beat": 15, "lane": 2, "type": "tap", "durationBeats": 0, "scaleDegree": 5 },
+    { "beat": 15.5, "lane": 1, "type": "tap", "durationBeats": 0, "scaleDegree": 4 },
+    { "beat": 16, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 3 },
+    { "beat": 18, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 1 },
+    { "beat": 18, "lane": 2, "type": "tap", "durationBeats": 0, "scaleDegree": 3 },
+    { "beat": 18, "lane": 4, "type": "tap", "durationBeats": 0, "scaleDegree": 5 },
+    { "beat": 22, "lane": 3, "type": "hold", "durationBeats": 2, "scaleDegree": 4 },
+    { "beat": 25, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 0 },
+    { "beat": 25.5, "lane": 1, "type": "tap", "durationBeats": 0, "scaleDegree": 1 },
+    { "beat": 26, "lane": 2, "type": "tap", "durationBeats": 0, "scaleDegree": 2 },
+    { "beat": 26.5, "lane": 3, "type": "tap", "durationBeats": 0, "scaleDegree": 3 },
+    { "beat": 27, "lane": 4, "type": "tap", "durationBeats": 0, "scaleDegree": 4 },
+    { "beat": 29, "lane": 1, "type": "tap", "durationBeats": 0, "scaleDegree": 2 },
+    { "beat": 29, "lane": 3, "type": "tap", "durationBeats": 0, "scaleDegree": 5 },
+    { "beat": 32, "lane": 4, "type": "tap", "durationBeats": 0, "scaleDegree": 7 },
+    { "beat": 33, "lane": 2, "type": "tap", "durationBeats": 0, "scaleDegree": 4 },
+    { "beat": 34, "lane": 0, "type": "tap", "durationBeats": 0, "scaleDegree": 0 }
+  ]
+}
+

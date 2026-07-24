@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { StageConfig } from "../config/stages";
 import type { JudgementKind, LaneIndex, NoteState } from "../rhythm/types";
+import { createLaneLayout } from "./laneLayout";
 
 interface LanePulse {
   until: number;
@@ -18,12 +19,12 @@ export class StageRenderer {
   private readonly scene: THREE.Scene;
   private readonly camera: THREE.PerspectiveCamera;
   private readonly stage: StageConfig;
+  private readonly lanePositions: readonly number[];
+  private readonly laneSpacing: number;
+  private readonly trainWidth: number;
   private readonly trainVisuals = new Map<string, THREE.Group>();
   private readonly laneLights: THREE.MeshBasicMaterial[] = [];
-  private readonly lanePulses: LanePulse[] = [
-    { until: 0, kind: "empty" },
-    { until: 0, kind: "empty" },
-  ];
+  private readonly lanePulses: LanePulse[];
   private assistLane: LaneIndex | null = null;
   private readonly particlePool: ParticleBurst[] = [];
   private nextParticleBurst = 0;
@@ -31,6 +32,14 @@ export class StageRenderer {
 
   constructor(canvas: HTMLCanvasElement, stage: StageConfig) {
     this.stage = stage;
+    const laneLayout = createLaneLayout(stage.laneCount);
+    this.lanePositions = laneLayout.positions;
+    this.laneSpacing = laneLayout.spacing;
+    this.trainWidth = laneLayout.trainWidth;
+    this.lanePulses = Array.from(
+      { length: stage.laneCount },
+      () => ({ until: 0, kind: "empty" }),
+    );
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
@@ -42,13 +51,18 @@ export class StageRenderer {
 
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog(stage.theme.sky, 24, 54);
-    this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-    this.camera.position.set(0, 8.5, 11);
+    this.camera = new THREE.PerspectiveCamera(
+      45 + (stage.laneCount - 2) * 1.6,
+      1,
+      0.1,
+      100,
+    );
+    this.camera.position.set(0, 8.5, 11 + (stage.laneCount - 2) * 0.45);
     this.camera.lookAt(0, 0.2, -10);
 
     this.createLighting();
     this.createRailway();
-    this.createCity();
+    this.createEnvironment();
     this.createTrainVisuals();
     this.createParticlePool();
 
@@ -117,7 +131,11 @@ export class StageRenderer {
     this.nextParticleBurst =
       (this.nextParticleBurst + 1) % this.particlePool.length;
     burst.startedAt = elapsed;
-    burst.points.position.set(lane === 0 ? -2 : 2, 0.65, 1.2);
+    const laneX = this.lanePositions[lane];
+    if (laneX === undefined) {
+      throw new Error(`Particle lane is outside the stage layout: ${lane}`);
+    }
+    burst.points.position.set(laneX, 0.65, 1.2);
     burst.points.visible = true;
     burst.points.material.color.setHex(
       kind === "perfect" ? 0xffed75 : this.stage.theme.train,
@@ -174,11 +192,16 @@ export class StageRenderer {
       metalness: 0.7,
       roughness: 0.38,
     });
-    const sleeperGeometry = new THREE.BoxGeometry(2.2, 0.08, 0.24);
+    const sleeperGeometry = new THREE.BoxGeometry(
+      this.trainWidth * 0.92,
+      0.08,
+      0.24,
+    );
     const sleeperMaterial = new THREE.MeshToonMaterial({ color: 0x754b32 });
 
-    [-2, 2].forEach((laneX, lane) => {
-      [-0.66, 0.66].forEach((offset) => {
+    this.lanePositions.forEach((laneX, lane) => {
+      const railOffset = this.trainWidth * 0.28;
+      [-railOffset, railOffset].forEach((offset) => {
         const rail = new THREE.Mesh(railGeometry, railMaterial);
         rail.position.set(laneX + offset, 0.04, -14.5);
         this.scene.add(rail);
@@ -196,7 +219,7 @@ export class StageRenderer {
         opacity: 0.34,
       });
       const laneLight = new THREE.Mesh(
-        new THREE.BoxGeometry(3.35, 0.05, 0.48),
+        new THREE.BoxGeometry(this.trainWidth * 1.12, 0.05, 0.48),
         laneLightMaterial,
       );
       laneLight.position.set(laneX, 0.13, 1.25);
@@ -207,31 +230,72 @@ export class StageRenderer {
     const platformMaterial = new THREE.MeshToonMaterial({ color: 0xf6f2dd });
     const warningMaterial = new THREE.MeshToonMaterial({ color: 0xffcf33 });
 
-    [-4.45, 0, 4.45].forEach((x) => {
+    const firstLane = this.lanePositions[0] ?? 0;
+    const lastLane = this.lanePositions.at(-1) ?? 0;
+    const platformPositions = [
+      firstLane - this.laneSpacing * 0.62,
+      ...this.lanePositions.slice(0, -1).map((position, index) => {
+        const nextPosition = this.lanePositions[index + 1] ?? position;
+        return (position + nextPosition) / 2;
+      }),
+      lastLane + this.laneSpacing * 0.62,
+    ];
+
+    platformPositions.forEach((x, index) => {
+      const outer = index === 0 || index === platformPositions.length - 1;
+      const platformWidth = outer ? 0.9 : Math.max(0.22, this.laneSpacing * 0.1);
       const platform = new THREE.Mesh(
-        new THREE.BoxGeometry(x === 0 ? 0.7 : 1.5, 0.32, 5.4),
+        new THREE.BoxGeometry(platformWidth, 0.32, 5.4),
         platformMaterial,
       );
       platform.position.set(x, 0.08, 1.2);
       this.scene.add(platform);
 
       const warning = new THREE.Mesh(
-        new THREE.BoxGeometry(0.18, 0.05, 5.4),
+        new THREE.BoxGeometry(Math.min(0.14, platformWidth * 0.4), 0.05, 5.4),
         warningMaterial,
       );
-      warning.position.set(x === 0 ? x : x + (x < 0 ? 0.72 : -0.72), 0.27, 1.2);
+      warning.position.set(x, 0.27, 1.2);
       this.scene.add(warning);
     });
   }
 
-  private createCity(): void {
-    let seed = 17;
-    const random = (): number => {
-      seed = (seed * 9301 + 49297) % 233280;
-      return seed / 233280;
-    };
+  private createEnvironment(): void {
+    switch (this.stage.environment) {
+      case "retro-subway":
+      case "red-subway":
+      case "deep-subway":
+        this.createTunnel();
+        return;
+      case "bay":
+      case "coast":
+        this.createWaterfront();
+        return;
+      case "mountain":
+      case "green-suburb":
+      case "starry":
+        this.createLandscape(this.stage.environment === "starry");
+        return;
+      case "finale":
+        this.createCity();
+        this.createCelebrationArches();
+        return;
+      default:
+        this.createCity();
+    }
+  }
 
-    const colors = [0xf7b267, 0xf79d84, 0xa8dadc, 0xb8c0ff, 0xffffff];
+  private createCity(): void {
+    const random = this.createRandom(17 + this.stage.stageNumber * 13);
+    const colors = [
+      this.stage.theme.train,
+      this.stage.theme.accent,
+      0xa8dadc,
+      0xb8c0ff,
+      0xffffff,
+    ];
+    const trackHalfWidth =
+      Math.abs(this.lanePositions.at(-1) ?? 0) + this.trainWidth / 2;
 
     for (let index = 0; index < 54; index += 1) {
       const side = index % 2 === 0 ? -1 : 1;
@@ -245,7 +309,7 @@ export class StageRenderer {
         }),
       );
       building.position.set(
-        side * (6.2 + random() * 7),
+        side * (trackHalfWidth + 2.5 + random() * 7),
         height / 2 - 0.02,
         1 - random() * 48,
       );
@@ -254,10 +318,184 @@ export class StageRenderer {
 
     const sun = new THREE.Mesh(
       new THREE.SphereGeometry(2.1, 24, 16),
-      new THREE.MeshBasicMaterial({ color: 0xffef9f }),
+      new THREE.MeshBasicMaterial({ color: this.stage.theme.accent }),
     );
     sun.position.set(-10, 12, -38);
     this.scene.add(sun);
+  }
+
+  private createTunnel(): void {
+    const trackHalfWidth = this.getTrackHalfWidth();
+    const tunnelX = trackHalfWidth + 1.3;
+    const frameMaterial = new THREE.MeshToonMaterial({
+      color: this.stage.theme.train,
+    });
+    const lightMaterial = new THREE.MeshBasicMaterial({
+      color: this.stage.theme.accent,
+    });
+
+    for (let z = -31; z <= 2; z += 3.2) {
+      [-tunnelX, tunnelX].forEach((x) => {
+        const pillar = new THREE.Mesh(
+          new THREE.BoxGeometry(0.28, 5.4, 0.28),
+          frameMaterial,
+        );
+        pillar.position.set(x, 2.65, z);
+        this.scene.add(pillar);
+      });
+
+      const beam = new THREE.Mesh(
+        new THREE.BoxGeometry(tunnelX * 2 + 0.28, 0.28, 0.28),
+        frameMaterial,
+      );
+      beam.position.set(0, 5.3, z);
+      this.scene.add(beam);
+
+      const light = new THREE.Mesh(
+        new THREE.BoxGeometry(Math.max(1.4, this.trainWidth), 0.08, 0.2),
+        lightMaterial,
+      );
+      light.position.set(0, 5.08, z + 0.2);
+      this.scene.add(light);
+    }
+  }
+
+  private createWaterfront(): void {
+    const trackHalfWidth = this.getTrackHalfWidth();
+    const waterMaterial = new THREE.MeshToonMaterial({
+      color: 0x2f9fd0,
+      transparent: true,
+      opacity: 0.88,
+    });
+
+    [-1, 1].forEach((side) => {
+      const water = new THREE.Mesh(
+        new THREE.PlaneGeometry(15, 68),
+        waterMaterial,
+      );
+      water.rotation.x = -Math.PI / 2;
+      water.position.set(side * (trackHalfWidth + 8), -0.03, -14);
+      this.scene.add(water);
+    });
+
+    const bridgeMaterial = new THREE.MeshToonMaterial({
+      color: this.stage.theme.accent,
+    });
+    for (let z = -28; z <= -4; z += 12) {
+      [-1, 1].forEach((side) => {
+        const tower = new THREE.Mesh(
+          new THREE.BoxGeometry(0.5, 5, 0.5),
+          bridgeMaterial,
+        );
+        tower.position.set(
+          side * (trackHalfWidth + 2.2),
+          2.45,
+          z,
+        );
+        this.scene.add(tower);
+      });
+      const beam = new THREE.Mesh(
+        new THREE.BoxGeometry(trackHalfWidth * 2 + 4.9, 0.35, 0.35),
+        bridgeMaterial,
+      );
+      beam.position.set(0, 4.6, z);
+      this.scene.add(beam);
+    }
+  }
+
+  private createLandscape(starry: boolean): void {
+    const random = this.createRandom(91 + this.stage.stageNumber * 7);
+    const trackHalfWidth = this.getTrackHalfWidth();
+    const mountainMaterial = new THREE.MeshToonMaterial({
+      color: this.stage.theme.ground,
+    });
+    const trunkMaterial = new THREE.MeshToonMaterial({ color: 0x6c4b2f });
+    const leafMaterial = new THREE.MeshToonMaterial({
+      color: this.stage.theme.train,
+    });
+
+    for (let index = 0; index < 20; index += 1) {
+      const side = index % 2 === 0 ? -1 : 1;
+      const mountain = new THREE.Mesh(
+        new THREE.ConeGeometry(2.2 + random() * 2.6, 4 + random() * 5, 6),
+        mountainMaterial,
+      );
+      mountain.position.set(
+        side * (trackHalfWidth + 3.5 + random() * 6),
+        1.6,
+        2 - random() * 48,
+      );
+      this.scene.add(mountain);
+    }
+
+    for (let index = 0; index < 30; index += 1) {
+      const side = index % 2 === 0 ? -1 : 1;
+      const x = side * (trackHalfWidth + 1.4 + random() * 3);
+      const z = 2 - random() * 42;
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.1, 0.14, 1, 6),
+        trunkMaterial,
+      );
+      trunk.position.set(x, 0.48, z);
+      const leaves = new THREE.Mesh(
+        new THREE.ConeGeometry(0.55, 1.6, 7),
+        leafMaterial,
+      );
+      leaves.position.set(x, 1.45, z);
+      this.scene.add(trunk, leaves);
+    }
+
+    if (starry) {
+      const positions = new Float32Array(90 * 3);
+      for (let index = 0; index < 90; index += 1) {
+        positions[index * 3] = (random() - 0.5) * 34;
+        positions[index * 3 + 1] = 5 + random() * 10;
+        positions[index * 3 + 2] = -5 - random() * 45;
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(positions, 3),
+      );
+      const stars = new THREE.Points(
+        geometry,
+        new THREE.PointsMaterial({
+          color: this.stage.theme.accent,
+          size: 0.16,
+        }),
+      );
+      this.scene.add(stars);
+    }
+  }
+
+  private createCelebrationArches(): void {
+    const trackHalfWidth = this.getTrackHalfWidth();
+    const colors = [0xff5d8f, 0xffd166, 0x55d6be, 0x6c9cff];
+
+    for (let index = 0; index < 8; index += 1) {
+      const z = -4 - index * 4;
+      const material = new THREE.MeshBasicMaterial({
+        color: colors[index % colors.length],
+      });
+      const beam = new THREE.Mesh(
+        new THREE.BoxGeometry(trackHalfWidth * 2 + 3, 0.22, 0.22),
+        material,
+      );
+      beam.position.set(0, 4.8, z);
+      this.scene.add(beam);
+    }
+  }
+
+  private getTrackHalfWidth(): number {
+    return Math.abs(this.lanePositions.at(-1) ?? 0) + this.trainWidth / 2;
+  }
+
+  private createRandom(initialSeed: number): () => number {
+    let seed = initialSeed;
+    return () => {
+      seed = (seed * 9301 + 49297) % 233280;
+      return seed / 233280;
+    };
   }
 
   private createTrainVisuals(): void {
@@ -267,7 +505,11 @@ export class StageRenderer {
           ? Math.min(4, Math.max(2, Math.ceil(note.duration * 1.5)))
           : 1;
       const visual = this.createTrain(carriageCount);
-      visual.position.x = note.lane === 0 ? -2 : 2;
+      const laneX = this.lanePositions[note.lane];
+      if (laneX === undefined) {
+        throw new Error(`Train lane is outside the stage layout: ${note.lane}`);
+      }
+      visual.position.x = laneX;
       visual.visible = false;
       this.trainVisuals.set(note.id, visual);
       this.scene.add(visual);
@@ -346,14 +588,14 @@ export class StageRenderer {
     for (let carriage = 0; carriage < carriageCount; carriage += 1) {
       const z = carriage * -2.78;
       const body = new THREE.Mesh(
-        new THREE.BoxGeometry(2.4, 0.86, 2.6),
+        new THREE.BoxGeometry(this.trainWidth, 0.86, 2.6),
         bodyMaterial,
       );
       body.position.set(0, 0.5, z);
       group.add(body);
 
       const roof = new THREE.Mesh(
-        new THREE.BoxGeometry(2.18, 0.2, 2.36),
+        new THREE.BoxGeometry(this.trainWidth * 0.9, 0.2, 2.36),
         silverMaterial,
       );
       roof.position.set(0, 1.01, z);
@@ -361,21 +603,25 @@ export class StageRenderer {
     }
 
     const face = new THREE.Mesh(
-      new THREE.BoxGeometry(2.14, 0.62, 0.16),
+      new THREE.BoxGeometry(this.trainWidth * 0.89, 0.62, 0.16),
       silverMaterial,
     );
     face.position.set(0, 0.55, 1.37);
     group.add(face);
 
-    const windowGeometry = new THREE.BoxGeometry(0.78, 0.3, 0.04);
-    [-0.49, 0.49].forEach((x) => {
+    const windowGeometry = new THREE.BoxGeometry(
+      this.trainWidth * 0.31,
+      0.3,
+      0.04,
+    );
+    [-this.trainWidth * 0.2, this.trainWidth * 0.2].forEach((x) => {
       const windowMesh = new THREE.Mesh(windowGeometry, glassMaterial);
       windowMesh.position.set(x, 0.69, 1.46);
       group.add(windowMesh);
     });
 
     const lightGeometry = new THREE.SphereGeometry(0.08, 12, 8);
-    [-0.82, 0.82].forEach((x) => {
+    [-this.trainWidth * 0.34, this.trainWidth * 0.34].forEach((x) => {
       const light = new THREE.Mesh(lightGeometry, lightMaterial);
       light.position.set(x, 0.35, 1.49);
       group.add(light);
